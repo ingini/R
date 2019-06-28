@@ -1,70 +1,96 @@
-ls("package:datasets")
-test_data <-
-  c(850,740,900,1050,1020,940,930,870,980,900,
-    800,740,630,1050,960,960,810,760,980,1000)
-test_data
-plot(test_data)
-plot(1:10)
-stem(test_data)
-hist(test_data)
-qqnorm(test_data)
-boxplot(test_data)
-summary(test_data)
-mean(test_data)
-min(test_data)
-sd(test_data)
-var(test_data)
+remoteLogin(
+  "http://test1234mlsvr.koreacentral.cloudapp.azure.com:12800",
+  session = TRUE,
+  diff = TRUE,
+  commandline = TRUE,
+  username = "admin",
+  password = "Pa$$w0rd2019"
+)
 
-plot(attitude)
+conString <- 
+  "Driver=SQL Server;Server=testdb12344321.database.windows.net;Database=AirlineData;Uid=admin2019;Pwd=Pa$$w0rd2019"
+airportData <- RxSqlServerData(connectionString = conString, table = "Airports")
+colClasses <- c(
+  "iata" = "character",
+  "airport" = "character",
+  "city" = "character",
+  "state" = "factor",
+  "country" = "factor",
+  "lat" = "numeric",
+  "long" = "numeric")
+csvData <- RxTextData(file = "C:\\TestData\\airports.csv", colClasses = colClasses)
+rxDataStep(inData = csvData, outFile = airportData, overwrite = TRUE)
 
-# y = 2x
-# x -> y
 
-# y x -> y = ()x + () -> y ~ x
-# 2 1
-# 3 2
-# y = ()x2 + ()x + ()
-# y ~ x + y
-test <- lm(rating ~ complaints, data=attitude)
-test
-summary(test)
+sqlConnString <- "Driver=SQL Server;Server=testdb12344321.database.windows.net;Database=AirlineData;Uid=admin2019;Pwd=Pa$$w0rd2019"
+connection <- RxSqlServerData(connectionString = sqlConnString,
+                              table = "dbo.Airports", rowsPerRead = 1000)
 
-# Microsoft R DataSet
-library(readr)
-library(RevoScaleR)
-list.files(rxGetOption("sampleDataDir"))
-inDataFile <- 
-  file.path(rxGetOption("sampleDataDir"),
-            "mortDefaultSmall2000.csv")
-mortData <- rxImport(inData = inDataFile)
-str(mortData)
-rxGetVarInfo(mortData)
-nrow(mortData)
-ncol(mortData)
-names(mortData)
-head(mortData, 3)
-rxGetInfo(mortData, getVarInfo = TRUE, numRows = 5)
-rxHistogram(~creditScore, data=mortData)
-mortData2 <-
-  rxDataStep(inData = mortData,
-             varsToDrop = c("year"),
-             rowSelection = creditScore < 800)
-rxHistogram(~creditScore, data=mortData2)
+# Use R functions to examine the data in the Airports table
+#connection
+head(connection) #head
+rxGetVarInfo(connection) #str
+rxSummary(~., connection)
 
-mortData3 <- rxDataStep(
-  inData = mortData, 
-  varsToDrop = c("year"),
-  rowSelection = creditScore < 800, 
-  transforms = list(catDept = cut(ccDebt, 
-              breaks = c(0,6500,13000),
-              labels = c("Low Debt", "High Debt")),
-  lowScore = creditScore < 625))
 
-rxGetVarInfo(mortData3)
+# Flight delay data for the year 2000
+setwd("C:\\강사공유\\20190627")
 
-mortCube <- rxCube(~F(creditScore):catDept, 
-                   data = mortData3)
+csvDataFile = "2000.csv" 
 
-head(mortCube)
-rxLinePlot(Counts ~ creditScore|catDept,
-           data=rxResultsDF(mortCube))
+# Examine the raw data
+rawData <- rxImport(csvDataFile, numRows = 1000)
+rxGetVarInfo(rawData)
+
+# Create an XDF file that combines the ArrDelay and DepDelay variables, 
+# and that selects a random 10% sample from the data
+
+outFileName <- "C:\\RWorkspace\\2000.xdf"
+filteredData <- rxImport(csvDataFile, outFile = outFileName, 
+                         overwrite = TRUE, append = "none",
+                         transforms = list(Delay = ArrDelay + DepDelay),
+                         rowSelection = ifelse(rbinom(.rxNumRows, size=1, prob=0.1), TRUE, FALSE))
+
+# Examine the stucture of the XDF data - it should contain a Delay variable
+# Note that Origin is a characater
+rxGetVarInfo(filteredData)
+
+# Generate a quick summary of the numeric data in the XDF file
+rxSummary(~., filteredData)
+
+# Summarize the delay fields
+rxSummary(~Delay+ArrDelay+DepDelay, filteredData)
+
+refactoredData = "C:\\RWorkspace\\2000Refactored.xdf"
+refactoredXdf = RxXdfData(refactoredData)
+
+#test_data = RxXdfData("C:\\RWorkspace\\2000.xdf")
+#rxGetVarInfo(test_data)
+
+#rxFactors(inData = filteredData, outFile = refactoredXdf, 
+rxFactors(inData = "C:\\RWorkspace\\2000.xdf", outFile = refactoredXdf, 
+          overwrite = TRUE, factorInfo = c("Origin", "Dest"))
+
+test_data2 = RxXdfData("C:\\RWorkspace\\2000Refactored.xdf")
+rxGetVarInfo(test_data2)
+
+rxGetVarInfo()
+
+rxSummary(Delay~Origin, refactoredXdf)
+
+# Generate a crosstab showing the average delay 
+# for flights departing from each origin to each destination
+rxCrossTabs(Delay ~ Origin:Dest, refactoredXdf, means = TRUE)
+
+# Generate a cube of the same data
+rxCube(Delay ~ Origin:Dest, refactoredXdf)
+
+# Omit the routes that don't exist
+rxCube(Delay ~ Origin:Dest, refactoredXdf, removeZeroCounts = TRUE)
+
+
+
+
+
+
+

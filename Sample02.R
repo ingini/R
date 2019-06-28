@@ -1,184 +1,226 @@
-# Conditional Syntax
-a <- 10
-if(is.integer(a)){
-  print("X is an Integer")
-} 
-a1 <- 10L
-if(is.integer(a1)){
-  print("X is an Integer")
-} 
-a2 <- c("What","is","truth")
-if("Truth" %in% a2){
-  print("True")
-} else {
-  print("False") 
-}
-a3 <- switch(3,"One","Two","Three","Four")
-a3
-# Code Complete(코드 완전정복)
-# 컴퓨터 역사.... 빌게이츠 생각속도
+# EX 1 - Run locally
 
-# Loop
-a4 <- c("Hello", "R loop")
-cnt <- 2
-repeat {
-  print(a4)
-  cnt <- cnt + 1
-  print(cnt)
-  if(cnt > 5) {
-    break;
-  }
-}
+setwd("C:\\Test")
 
-a5 <- c("Hello", "R loop")
-cnt <- 2
-while(cnt < 7){
-  print(a5)
-  cnt = cnt + 1
-}
+# Examine the structure of the data file
+flightDataSampleCsv <- "2000.csv"
+flightDataSample <- rxImport(flightDataSampleCsv, numRows = 10)
 
-a6 <- LETTERS[1:4]
-a7 <- letters[1:4]
+rxGetVarInfo(flightDataSample)
 
-for(i in a6){
-  print(i)
-}
+# The structure of the data
+flightDataColumns <- c("Year" = "factor",
+                       "DayofMonth" = "factor",
+                       "DayOfWeek" = "factor",
+                       "UniqueCarrier" = "factor",
+                       "Origin" = "factor",
+                       "Dest" = "factor",
+                       "CancellationCode" = "factor"
+)
 
-# function -> 함수, 프로시져(procedure), 메소드(method)
-# -> (black box, swap...) -> 반복적인 작업
+# Read the CSV file and write it out as an XDF file
+flightDataXdf <- "C:\\Test\\2000.xdf"
+rxOptions(reportProgress = 1)
+flightDataSampleXDF <- rxImport(inData = flightDataSampleCsv, outFile = flightDataXdf, overwrite = TRUE, append = "none", colClasses = flightDataColumns)
 
-#built-in functions
-#print()
-#select()
-#filter()
-print(seq(1,10))
+# Check the structure of the new file
+rxGetVarInfo(flightDataXdf)
 
-#user-defined functions
-myfunc <- function(a) {
-  for(i in 1:a){
-    b <- i*2
-    print(b)
-  }
-}
+# Compare sizes of XDF and CSV files at this point (using File Explorer, not R)
 
-myfunc(10)
+# Compare performance of CSV and XDF
 
-myfunc2 <- function(){
-  for(i in 1:5){
-    print(i * 2)
-  }
-}
-myfunc2()
+system.time(csvDelaySummary <- rxSummary(~., flightDataSampleCsv))
+# print(csvDelaySummary)
 
-myfunc3 <- function(a,b){
-  r <- a + b
-  print(r)
-}
-myfunc3(1,2)
-myfunc3(a=1,b=2)
-myfunc3(b=2,a=1)
-myfunc3(1, b=3)
+system.time(xdfDelaySummary <- rxSummary(~., flightDataSampleXDF))
+# print(xdfDelaySummary)
 
-myfunc4 <- function(a=0, b=0){
-  r <- a + b
-  print(r)
-}
+# Generate crosstabs and cubes for cancelled flights - still comparing performance
+system.time(csvCrossTabInfo <- rxCrossTabs(~as.factor(Month):as.factor(Cancelled == 1), flightDataSampleCsv))
+# print(csvCrossTabInfo)
 
-myfunc4(a=1)
-myfunc4(b=2)
-myfunc5 <- function(a){c <- a}
-myfunc5(1)
+system.time(xdfCrossTabInfo <- rxCrossTabs(~as.factor(Month):as.factor(Cancelled == 1), flightDataSampleXDF))
+# print(xdfCrossTabInfo)
 
-df <- read.csv("exam.csv")
-str(df)
+system.time(csvCubeInfo <- rxCube(~as.factor(Month):as.factor(Cancelled), flightDataSampleCsv))
+# print(csvCubeInfo)
 
-df %>% 
-  select(id, class, math) %>%
-  filter(class == 1) %>%
-  arrange
-df %>%
-  arrange(class, desc(id)) %>%
-  head(5)
-library(magrittr)
-df %>%
-  arrange(class, desc(id)) %>%
-  mutate(total = math + english + science,
-         mean = (math + english + science)/3)
-# group_by
-df %>%
-  group_by(class) %>%
-  summarise(mean_math = mean(math),
-            median_math = median(math),
-            sum_math = sum(math),
-            count_math = n())
+system.time(xdfCubeInfo <- rxCube(~as.factor(Month):as.factor(Cancelled), flightDataSampleXDF))
+# print(xdfCubeInfo)
+
+# Tidy up memory
+rm(flightDataSample, flightDataSampleXDF, csvDelaySummary, xdfDelaySummary, 
+   csvCrossTabInfo, xdfCrossTabInfo, csvCubeInfo, xdfCubeInfo)
 
 
-mpg <- as.data.frame(ggplot2::mpg)
-str(mpg)
+# EX 2 - Run remotely on R Server
 
-select(mpg, class)
-mpg %>% 
-  group_by(class) %>%
-  summarise(mean_cty=mean(cty))
+# Preparation: Log into the LON-RSVR VM and create the Data share over the C:\Temp folder
+# Copy the CSV files from E:\Setup\Data to \\LON-RSVR\\Data
 
-# 어떤 회사(manufacturer)의 자동차 hwy가 가장 높은 것을 
-# 알아보려고 한다. hwy평균 가장 높은 회사 5곳을 출력하시오.
-names(mpg)
-mpg%>%
-  group_by(displ <= 4) %>%
-  group_by(displ >= 5) %>%
-  filter(displ <= 4 | displ >= 5) %>%
-  summarise(mean_hwy = mean(hwy)) %>%
-  arrange(desc(mean_hwy))
+remoteLogin("http://test1234mlsvr.koreacentral.cloudapp.azure.com:12800", session = TRUE, diff = TRUE, commandline = TRUE)
 
-mpg %>% 
-  select(manufacturer,cty) %>% 
-  filter(manufacturer == 'toyota' | manufacturer == 'audi') %>%
-  group_by(manufacturer) %>% 
-  summarise(mean_cty = mean(cty)) %>% 
-  arrange(desc(mean_cty))
+pause()
 
-mpg %>%
-  filter(manufacturer == 'chevrolet' | manufacturer == 'ford' | manufacturer == 'honda') %>%
-  group_by(manufacturer) %>%
-  summarise(mean_hwy = mean(hwy))
-  
-#4.mpg 데이터 복사본을 만들고, 
-#cty와 hwy를 더한 '합산 연비 변수'를 추가하세요.
+putLocalObject(c("flightDataColumns"))
 
-mpg_copy <- mpg %>%
-  mutate(totaly = cty + hwy)
-mpg_copy
-#5. 앞에서 만든 '합산 연비 변수'를 2로 나눠 '평균 연비 변수'를 추가세요.
-mpg_copy <- mpg %>%
-  mutate(totaly = cty + hwy, avgy = totaly/2 )
-mpg_copy
-# 6. '평균 연비 변수'가 가장 높은 자동차 3종의 데이터를 출력하세요.
-mpg_copy <- mpg %>%
-  mutate(totaly = cty + hwy, avgy = totaly/2 ) %>%
-  arrange(desc(avgy)) %>%
-  head(3)
-mpg_copy
+resume()
 
-#7. 어떤 회사에서 "compact"(경차) 차종을 #
-#가장 많이 생산하는지 알아보려고 합니다. 
-#각 회사별 "compact" 차종 수를 내림차순으로 
-#정렬해 출력하세요.
-mpg %>%
-  filter(class=='compact') %>%
-  group_by(manufacturer) %>%
-  summarise('count' = n()) %>%
-  arrange(desc(count))
+ls()
+flightDataColumns
 
-# 
-filter(select(mpg,manufacturer)
-              , manufacturer == c('audi','toyota'))
+# Transform the data - create a combined Delay column, filter all cancelled flights, and discard FlightNum, TailNum, and CancellationCode
+# Test import and transform over a small sample first
+flightDataSampleXDF <- rxImport(inData = "C:\\TestData\\2000.csv", outFile = "C:\\TestData\\Sample.xdf", overwrite = TRUE, append = "none", colClasses = flightDataColumns,
+                                transforms = list(
+                                  Delay = ArrDelay + DepDelay + ifelse(is.na(CarrierDelay), 0, CarrierDelay) + ifelse(is.na(WeatherDelay), 0, WeatherDelay) + ifelse(is.na(NASDelay), 0, NASDelay) + ifelse(is.na(SecurityDelay), 0, SecurityDelay) + ifelse(is.na(LateAircraftDelay), 0, LateAircraftDelay),
+                                  MonthName = factor(month.name[as.numeric(Month)], levels=month.name)),
+                                rowSelection = (Cancelled == 0),
+                                varsToDrop = c("FlightNum", "TailNum", "CancellationCode"),
+                                numRows = 1000
+)
 
-filter(select(mpg,manufacturer), manufacturer == 'audi' | 
-         manufacturer == 'toyota')
+head(flightDataSampleXDF, 100)
+rxGetVarInfo(flightDataSampleXDF)
 
-select(mpg,manufacturer)
+# Combine separate CSV files containing data for each year into one big XDF file, performing the same transformations (which have now been tested)
+rxOptions(reportProgress = 1)
+
+delayXdf <- "C:\\TestData\\FlightDelayData.xdf"
+flightDataCsvFolder <- "C:\\Data"
+delayXdf
+flightDataCsvFolder
+flightDataXDF <- rxImport(inData = flightDataCsvFolder, 
+                          outFile = delayXdf, 
+                          overwrite = TRUE, 
+                          append = ifelse(file.exists(delayXdf), "rows", "none"), 
+                          colClasses = flightDataColumns,
+                          transforms = list(
+                            Delay = ArrDelay + DepDelay + ifelse(is.na(CarrierDelay), 0, CarrierDelay) + ifelse(is.na(WeatherDelay), 0, WeatherDelay) + ifelse(is.na(NASDelay), 0, NASDelay) + ifelse(is.na(SecurityDelay), 0, SecurityDelay) + ifelse(is.na(LateAircraftDelay), 0, LateAircraftDelay),
+                            MonthName = factor(month.name[as.numeric(Month)], levels=month.name)),
+                          rowSelection = (Cancelled == 0),
+                          varsToDrop = c("FlightNum", "TailNum", "CancellationCode"),
+                          rowsPerRead = 500000)
+                          
+rxGetVarInfo(flightDataXDF)
 
 
+exit
 
+# EX3 - Start locally
+
+# Import airport data from the Airports table in the AirlineData database, and save it as an XDF file
+conString <- "Driver=SQL Server;Server=testdb12344321.
+database.windows.net;Database=AirlineData;Uid=admin2019;Pwd=Pa$$w0rd2019"
+airportData <- RxSqlServerData(connectionString = conString, table = "Airports")
+
+# Examine the first few rows of data
+head(airportData)
+rxGetVarInfo(airportData)
+
+# Import the data to a data frame
+airportInfo <- rxImport(inData = airportData, stringsAsFactors = TRUE)
+head(airportInfo)
+rxGetVarInfo(airportInfo)
+
+# Connect remotely
+remoteLogin("http://test1234mlsvr.koreacentral.cloudapp.azure.com:12800", session = TRUE, diff = TRUE, commandline = TRUE)
+
+pause()
+
+# Copy the data frame
+putLocalObject(c("airportInfo"))
+
+resume()
+
+# Add the OriginState and DestState columns. These columns hold the US state for the Origin and Dest airports, retrieved from the airportData data frame
+enhancedDelayDataXdf <- "C:\\TestData\\EnhancedFlightDelayData.xdf"
+flightDelayDataXdf <- "C:\\TestData\\Data\\FlightDelayData.xdf"
+
+enhancedXdf <- rxImport(inData = flightDelayDataXdf, outFile = enhancedDelayDataXdf,
+                        overwrite = TRUE, append = "none", rowsPerRead = 500000,
+                        transforms = list(OriginState = stateInfo$state[match(Origin, stateInfo$iata)],
+                                          DestState = stateInfo$state[match(Dest, stateInfo$iata)]),
+                        transformObjects = list(stateInfo = airportInfo)
+)
+
+head(enhancedXdf)
+
+
+# EX4 - Remain connected remotely
+
+# delayFactor breaks the continous variable Delay into a series of factored values
+delayFactor <- expression(list(Delay = cut(Delay, breaks = c(0, 1, 30, 60, 120, 180, 181), labels = c("No delay", "Up to 30 mins", "30 mins - 1 hour", "1 hour to 2 hours", "2 hours to 3 hours", "More than 3 hours"))))
+
+# Generate a crosstab that summarizes the delays for flights starting at the Origin airport
+originAirportDelays <- rxCrossTabs(formula = ~ Origin:Delay, data = enhancedXdf,
+                                   transforms = delayFactor
+)
+print(originAirportDelays)
+
+# Generate a crosstab that summarizes the delays for flights finishing at the Dest airport
+destAirportDelays <- rxCrossTabs(formula = ~ Dest:Delay, data = enhancedXdf,
+                                 transforms = delayFactor
+)
+print(destAirportDelays)
+
+# Generate a crosstab that summarizes the delays for flights starting in the OriginState state
+originStateDelays <- rxCrossTabs(formula = ~ OriginState:Delay, data = enhancedXdf,
+                                 transforms = delayFactor
+)
+print(originStateDelays)
+
+# Generate a crosstab that summarizes the delays for flights finishing in the DestState state
+destStateDelays <- rxCrossTabs(formula = ~ DestState:Delay, data = enhancedXdf,
+                               transforms = delayFactor
+)
+print(destStateDelays)
+
+# return to the local session
+exit
+
+# Install dplyrXdf
+install.packages("dplyr")
+install.packages("devtools")
+devtools::install_github("RevolutionAnalytics/dplyrXdf")
+library(dplyr)
+library(dplyrXdf)
+
+# Read in a subset of the data from the XDF file containing the data to be summarized (discard all the other columns)
+enhancedDelayDataXdf <- "\\\\LON-RSVR\\Data\\EnhancedFlightDelayData.xdf"
+essentialData <-RxXdfData(enhancedDelayDataXdf, varsToKeep = c("Delay", "Origin", "Dest", "OriginState", "DestState"))
+
+# Summarize the data using dplyrXdf
+originAirportStats <- filter(essentialData, !is.na(Delay)) %>%
+  select(Origin, Delay) %>%
+  group_by(Origin) %>%
+  summarise(mean_delay = mean(Delay), .method = 1) %>% # Use methods 1 or 2 only
+  arrange(desc(mean_delay)) %>%
+  persist("\\\\LON-RSVR\\Data\\temp.xdf")  # Return a reference to a persistent file. By default, temp files will be deleted
+head(originAirportStats, 100)
+
+destAirportStats <- filter(essentialData, !is.na(Delay)) %>%
+  select(Dest, Delay) %>%
+  group_by(Dest) %>%
+  summarise(mean_delay = mean(Delay), .method = 1) %>%
+  arrange(desc(mean_delay)) %>%
+  persist("\\\\LON-RSVR\\Data\\temp.xdf")
+head(destAirportStats, 100)
+
+originStateStats <- filter(essentialData, !is.na(Delay)) %>%
+  select(OriginState, Delay) %>%
+  group_by(OriginState) %>%
+  summarise(mean_delay = mean(Delay), .method = 1) %>%
+  arrange(desc(mean_delay)) %>%
+  persist("\\\\LON-RSVR\\Data\\temp.xdf")
+head(originStateStats, 100)
+
+destStateStats <- filter(essentialData, !is.na(Delay)) %>%
+  select(DestState, Delay) %>%
+  group_by(DestState) %>%
+  summarise(mean_delay = mean(Delay), .method = 1) %>%
+  arrange(desc(mean_delay)) %>%
+  persist("\\\\LON-RSVR\\Data\\temp.xdf")
+head(destStateStats, 100)
 
